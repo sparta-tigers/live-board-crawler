@@ -1,0 +1,41 @@
+spring:
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.default_batch_fetch_size: 100
+      hibernate.jdbc.time_zone: Asia/Seoul
+  profiles:
+    active: local
+  jackson:
+    time-zone: Asia/Seoul
+
+---
+spring.config.activate.on-profile: local
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${LOCAL_DATABASE_URL}/sparta-tigers
+    username: ${LOCAL_DATABASE_USERNAME}
+    password: ${LOCAL_DATABASE_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        show_sql: true
+        format_sql: true
+        highlight_sql: true
+
+---
+spring.config.activate.on-profile: prod
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${PROD_DATABASE_URL}
+    username: ${PROD_DATABASE_USERNAME}
+    password: ${PROD_DATABASE_PASSWORD}
