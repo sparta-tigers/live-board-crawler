@@ -31,8 +31,7 @@ public class LiveBoardCrawlerRunner implements ApplicationRunner {
         LocalDate targetDate = parseDate(args.getOptionValues("targetDate").get(0));
         log.info("Target date: {}", targetDate);
         List<MatchDetail> matchDetails = matchService.getMatchDetails(targetDate);
-        LiveBoardUrls liveBoardUrls = liveBoardService.getLiveBoardUrls(matchDetails);
-        log.info("LiveBoardUrls: {}", liveBoardUrls);
+        liveBoardService.startLiveBoardCrawler(matchDetails);
     }
 
     private LocalDate parseDate(String str) {
