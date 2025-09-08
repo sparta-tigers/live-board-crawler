@@ -16,5 +16,4 @@ public class MatchScore {
     private String homeScore;  // 홈팀 점수
     private String awayScore;  // 어웨이팀 점수
     private String pitcherCount; // 투구수
-
 }

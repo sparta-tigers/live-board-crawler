@@ -16,5 +16,9 @@ public class LiveBoardData {
     private MatchScore matchScore;      // 경기 점수 정보
     private InningTexts inningTexts;    // 이닝별 문자중계
     private String currentInning;       // 현재 이닝
+    private String[] awayInningScores;  // 어웨이팀 이닝별 점수 (1-15회)
+    private String[] homeInningScores;  // 홈팀 이닝별 점수 (1-15회)
+    private List<LineupBatter> awayBatters;
+    private List<LineupBatter> homeBatters;
 }
 

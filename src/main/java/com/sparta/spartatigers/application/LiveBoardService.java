@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -110,18 +111,72 @@ public class LiveBoardService {
                             inningSixTexts, inningSevenTexts, inningEightTexts, inningNineTexts, inningExtraTexts
                         };
                     
+                        // 어웨이팀의 모든 이닝 점수
+                        const awayScores = document.querySelectorAll('#tblScoreBoard2 tbody tr:first-child td');
+                        const awayInningScores = Array.from(awayScores).map(td => td.textContent);
+                    
+                        // 홈팀의 모든 이닝 점수
+                        const homeScores = document.querySelectorAll('#tblScoreBoard2 tbody tr:nth-child(2) td');
+                        const homeInningScores = Array.from(homeScores).map(td => td.textContent);
+                    
                         const matchScore = {strike, ball, out, homeScore, awayScore, pitcherCount};
                     
-                        return {players, matchScore, inningTexts, currentInning};
+                        // 어웨이팀의 타자
+                        const awayBatters = [];
+                        const awayBatterTable = document.querySelector('#scrollL_content table.tList:first-of-type tbody');
+                        const awayBatterRows = awayBatterTable.querySelectorAll('tr');
+                    
+                        awayBatterRows.forEach(row => {
+                            const cells = row.querySelectorAll('th, td');
+                    
+                            if (cells.length >= 7) {
+                                const batter = {
+                                    battingOrder: cells[0].textContent.trim(),
+                                    position: cells[1].textContent.trim(),
+                                    name: cells[2].textContent.trim(),
+                                    atBats: parseInt(cells[3].textContent.trim()) || 0,
+                                    runs: parseInt(cells[4].textContent.trim()) || 0,
+                                    hits: parseInt(cells[5].textContent.trim()) || 0,
+                                    rbis: parseInt(cells[6].textContent.trim()) || 0
+                                };
+                                awayBatters.push(batter);
+                            }}
+                        );
+                    
+                        // 홈팀의 타자
+                        const homeBatters = [];
+                        const homeBatterTable = document.querySelector('#scrollR_content table.tList:first-of-type tbody');
+                        const homeBatterRows = homeBatterTable.querySelectorAll('tr');
+                    
+                        homeBatterRows.forEach(row => {
+                            const cells = row.querySelectorAll('th, td');
+                    
+                            if (cells.length >= 7) {
+                                const batter = {
+                                    battingOrder: cells[0].textContent.trim(),
+                                    position: cells[1].textContent.trim(),
+                                    name: cells[2].textContent.trim(),
+                                    atBats: parseInt(cells[3].textContent.trim()) || 0,
+                                    runs: parseInt(cells[4].textContent.trim()) || 0,
+                                    hits: parseInt(cells[5].textContent.trim()) || 0,
+                                    rbis: parseInt(cells[6].textContent.trim()) || 0
+                                };
+                                homeBatters.push(batter);
+                            }
+                        });
+                    
+                        return {players, matchScore, inningTexts, currentInning, homeInningScores, awayInningScores, homeBatters, awayBatters};
                     })();
                     """;
 
             Object result = page.evaluate(script);
-            log.info(objectMapper.writeValueAsString(result));
             LiveBoardData liveBoardData = convertToLiveBoardData(result);
-            log.info("{} 크롤링 완료", url);
 
             // TODO Pub to Redis
+            log.info("========================");
+            log.info("away team batters: {}", liveBoardData.getAwayBatters());
+            log.info("home team batters: {}", liveBoardData.getHomeBatters());
+            log.info("========================");
 
             page.close();
         } catch (Exception e) {
