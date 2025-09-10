@@ -2,21 +2,19 @@ package com.sparta.spartatigers.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.Browser;
-import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.LoadState;
 import com.sparta.spartatigers.domain.LiveBoardData;
-import com.sparta.spartatigers.domain.LiveBoardUrls;
 import com.sparta.spartatigers.domain.MatchDetail;
 import com.sparta.spartatigers.domain.TeamCode;
+import com.sparta.spartatigers.infrastructure.message.RedisLiveBoardNotifier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -25,15 +23,15 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class LiveBoardService {
     private static final String BASE_URL = "https://www.koreabaseball.com/Game/LiveText.aspx";
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
+    private final LiveBoardNotifier liveBoardNotifier;
 
 
     public void startLiveBoardCrawler(List<MatchDetail> matchDetails) {
-        LiveBoardUrls liveBoardUrls = getLiveBoardUrls(matchDetails);
-
         Playwright playwright = null;
         Browser browser = null;
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -41,11 +39,21 @@ public class LiveBoardService {
             playwright = Playwright.create();
             browser = playwright.chromium().launch();
             Browser finalBrowser = browser;
-            liveBoardUrls.getTargetUrls().forEach(url ->
-                    scheduler.scheduleWithFixedDelay(() -> crawlLiveBoard(url, finalBrowser),
-                            0,
-                            5,
-                            TimeUnit.SECONDS));
+            
+            matchDetails.forEach(matchDetail -> {
+                LocalDateTime matchTime = matchDetail.getMatchTime();
+                String yyyymmdd = matchTime.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+                int year = matchTime.getYear();
+                TeamCode homeTeamCode = matchDetail.getHomeTeamCode();
+                TeamCode awayTeamCode = matchDetail.getAwayTeamCode();
+                String gameId = String.format("%s%s%s0", yyyymmdd, awayTeamCode.name(), homeTeamCode.name());
+                String url = String.format("%s?leagueId=1&seriesId=0&gameId=%s&gyear=%d", BASE_URL, gameId, year);
+                
+                scheduler.scheduleWithFixedDelay(() -> crawlLiveBoard(url, matchDetail.getMatchId(), finalBrowser),
+                        0,
+                        5,
+                        TimeUnit.SECONDS);
+            });
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 log.info("Shutdown hook triggered");
@@ -65,7 +73,7 @@ public class LiveBoardService {
         }
     }
 
-    public void crawlLiveBoard(String url, Browser browser) {
+    public void crawlLiveBoard(String url, Long matchId, Browser browser) {
         try {
             Page page = browser.newPage();
             page.navigate(url);
@@ -171,12 +179,11 @@ public class LiveBoardService {
 
             Object result = page.evaluate(script);
             LiveBoardData liveBoardData = convertToLiveBoardData(result);
+            liveBoardData.setMatchId(matchId);
 
-            // TODO Pub to Redis
-            log.info("========================");
-            log.info("away team batters: {}", liveBoardData.getAwayBatters());
-            log.info("home team batters: {}", liveBoardData.getHomeBatters());
-            log.info("========================");
+            liveBoardNotifier.notifyLiveBoardData(matchId, liveBoardData);
+
+            log.info("Published live board data for match ID: {}", matchId);
 
             page.close();
         } catch (Exception e) {
@@ -192,22 +199,5 @@ public class LiveBoardService {
             log.error("LiveBoardCrawler error", e);
             throw new RuntimeException(e);
         }
-    }
-
-    private LiveBoardUrls getLiveBoardUrls(List<MatchDetail> matchDetails) {
-        return new LiveBoardUrls(matchDetails.stream()
-                .map(matchDetail -> {
-                    LocalDateTime matchTime = matchDetail.getMatchTime();
-                    String yyyymmdd = matchTime.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-                    int year = matchTime.getYear();
-
-                    TeamCode homeTeamCode = matchDetail.getHomeTeamCode();
-                    TeamCode awayTeamCode = matchDetail.getAwayTeamCode();
-
-                    String gameId = String.format("%s%s%s0", yyyymmdd, awayTeamCode.name(), homeTeamCode.name());
-
-                    return String.format("%s?leagueId=1&seriesId=0&gameId=%s&gyear=%d", BASE_URL, gameId, year);
-                })
-                .toList());
     }
 }
